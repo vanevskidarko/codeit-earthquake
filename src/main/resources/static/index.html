@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Earthquake Data Viewer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-4.0.0.js" integrity="sha256-9fsHeVnKBvqh3FB2HYu7g2xseAZ5MlN6Kz/qnkASV8U=" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Recent Earthquakes (Mag > 2.0)</h1>
+        
+        <div class="mb-3 d-flex justify-content-between align-items-center">
+            <button id="fetchBtn" class="btn btn-primary">Fetch Latest Data from USGS</button>
+            <span id="statusMessage" class="text-success fw-bold"></span>
+        </div>
+
+        <!-- Filter Form -->
+        <div class="card mb-4 border-info">
+            <div class="card-body">
+                <form id="filterForm" class="row g-3">
+                    <div class="col-md-3">
+                        <label for="filterMag" class="form-label form-control-sm mb-0">Min Magnitude</label>
+                        <input type="number" step="0.1" class="form-control form-control-sm" id="filterMag" placeholder="e.g. 2.5">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="filterMagType" class="form-label form-control-sm mb-0">Mag Type</label>
+                        <input type="text" class="form-control form-control-sm" id="filterMagType" placeholder="e.g. ml">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="filterPlace" class="form-label form-control-sm mb-0">Place / Location</label>
+                        <input type="text" class="form-control form-control-sm" id="filterPlace" placeholder="Search Text">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="filterTime" class="form-label form-control-sm mb-0">After Time</label>
+                        <input type="time" class="form-control form-control-sm" id="filterTime">
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-striped table-hover table-bordered">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID</th>
+                        <th>Title</th>
+                        <th>Magnitude</th>
+                        <th>Type</th>
+                        <th>Place</th>
+                        <th>Date & Time</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="earthquakeTableBody">
+                    <tr>
+                        <td colspan="7" class="text-center">Loading data...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div class="d-flex justify-content-between align-items-center mt-3 mb-5">
+            <button id="prevBtn" class="btn btn-secondary" onclick="changePage(-1)" disabled>Previous</button>
+            <span id="pageInfo" class="fw-bold">Page 1</span>
+            <button id="nextBtn" class="btn btn-secondary" onclick="changePage(1)" disabled>Next</button>
+        </div>
+    </div>
+
+    <script>
+        const baseUrl = '/api/earthquakes';
+        let currentPage = 0;
+        const pageSize = 10;
+
+        $(document).ready(function() {
+            loadEarthquakes(0);
+
+            let filterTimeout;
+            $('#filterForm input').on('input change', function() {
+                clearTimeout(filterTimeout);
+                filterTimeout = setTimeout(function() {
+                    loadEarthquakes(0); 
+                }, 300);
+            });
+
+            $('#filterForm').submit(function(e) {
+                e.preventDefault();
+            });
+
+            $('#fetchBtn').click(function() {
+                const $btn = $(this);
+                const $status = $('#statusMessage');
+                
+                $btn.prop('disabled', true).text("Fetching...");
+                $status.text("").removeClass("text-success text-danger").addClass("text-info fw-bold");
+
+                $.ajax({
+                    url: baseUrl + '/fetch',
+                    method: 'POST',
+                    success: function() {
+                        $status.removeClass("text-info text-danger").addClass("text-success fw-bold").text("Data updated successfully!");
+                        loadEarthquakes(0);
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error:', error);
+                        $status.removeClass("text-info text-success").addClass("text-danger fw-bold").text("Error fetching data.");
+                    },
+                    complete: function() {
+                        $btn.prop('disabled', false).text("Fetch latest data from USGS");
+                    }
+                });
+            });
+        });
+
+        // Function to load earthquakes into the table
+        function loadEarthquakes(page = 0) {
+            currentPage = page;
+            
+            const filterMag = $('#filterMag').val();
+            const filterMagType = $('#filterMagType').val();
+            const filterPlace = $('#filterPlace').val();
+            const filterTime = $('#filterTime').val();
+            
+            let queryParams = '?pageNum=' + currentPage + '&pageSize=' + pageSize;
+            
+            if (filterMag) queryParams += '&magnitude=' + filterMag;
+            if (filterMagType) queryParams += '&magType=' + encodeURIComponent(filterMagType);
+            if (filterPlace) queryParams += '&place=' + encodeURIComponent(filterPlace);
+            if (filterTime) {
+                const today = new Date();
+                const [hours, minutes] = filterTime.split(':');
+                today.setHours(hours, minutes, 0, 0);
+                const eventTimeMs = today.getTime();
+                queryParams += '&eventTime=' + eventTimeMs;
+            }
+
+            $.ajax({
+                url: baseUrl + queryParams,
+                method: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    const $tbody = $('#earthquakeTableBody');
+                    $tbody.empty();
+                    const earthquakes = data.content || [];
+                    if(earthquakes.length === 0) {
+                        $tbody.html('<tr><td colspan="7" class="text-center">No earthquake data found. Click fetch to get the latest.</td></tr>');
+                        updatePaginationUI(data);
+                        return;
+                    }
+
+                    $.each(earthquakes, function(index, item) {
+                        // Format the timestamp into a readable date
+                        //1776252424628
+                        const dateObj = new Date(item.eventTime);
+                        const formattedDate = dateObj.toLocaleString();
+
+                        const trHtml = '<tr>' +
+                            '<td>' + item.id + '</td>' +
+                            '<td>' + item.title + '</td>' +
+                            '<td><span class="badge bg-danger">' + item.magnitude + '</span></td>' +
+                            '<td>' + item.magType + '</td>' +
+                            '<td>' + item.place + '</td>' +
+                            '<td>' + formattedDate + '</td>' +
+                            '<td><button class="btn btn-sm btn-outline-danger" onclick="deleteRecord(' + item.id + ')">Delete</button></td>' +
+                        '</tr>';
+                        $tbody.append(trHtml);
+                    });
+
+                    updatePaginationUI(data);
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error loading data:', error);
+                    $('#earthquakeTableBody').html('<tr><td colspan="7" class="text-center text-danger">Failed to load data from server.</td></tr>');
+                }
+            });
+        }
+
+        function updatePaginationUI(data) {
+            if (data.totalElements !== undefined) {
+                const totalPages = data.totalPages === 0 ? 1 : data.totalPages;
+                $('#pageInfo').text('Page ' + (data.number + 1) + ' of ' + totalPages);
+                
+                $('#prevBtn').prop('disabled', data.first);
+                $('#nextBtn').prop('disabled', data.last);
+            }
+        }
+
+        function changePage(direction) {
+            loadEarthquakes(currentPage + direction);
+        }
+
+        function deleteRecord(id) {
+            if(confirm('Are you sure you want to delete this record?')) {
+                $.ajax({
+                    url: baseUrl + '/' + id,
+                    method: 'DELETE',
+                    success: function() {
+                        loadEarthquakes(currentPage); // silently relaod the current page
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error:', error);
+                        alert("Failed to delete record.");
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+</html>

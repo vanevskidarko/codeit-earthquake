@@ -39,7 +39,7 @@ public class EarthquakeController {
             @RequestParam(defaultValue = "0") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize
     ) {
-        return earthquakeService.find(magnitude, magType, place, title, eventTime, pageNum - 1 , pageSize);
+        return earthquakeService.find(magnitude, magType, place, title, eventTime, pageNum , pageSize);
     }
 
     @DeleteMapping("/{id}")

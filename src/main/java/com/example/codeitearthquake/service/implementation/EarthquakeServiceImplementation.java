@@ -33,25 +33,44 @@ public class EarthquakeServiceImplementation implements EarthquakeService {
 
     @Override
     public Page<Earthquake> find(Float magnitude, String magType, String place, String title, Long eventTime, Integer pageNum, Integer pageSize) {
-        Specification<Earthquake> specification = Specification.allOf(
-                filterContainsText(Earthquake.class,"place",place),
-                greaterThan(Earthquake.class,"magnitude",magnitude)
-        );
-        return this.earthquakeRepository.findAll(specification, PageRequest.of(pageNum,pageSize));
+        Specification<Earthquake> specification = Specification.where((root, query, criteriaBuilder) -> criteriaBuilder.conjunction());
+
+        if (place != null && !place.isEmpty()) {
+            specification = specification.and(filterContainsText(Earthquake.class, "place", place));
+        }
+        if (magnitude != null) {
+            specification = specification.and(greaterThan(Earthquake.class, "magnitude", magnitude));
+        }
+        if (magType != null && !magType.isEmpty()) {
+            specification = specification.and(filterContainsText(Earthquake.class, "magType", magType));
+        }
+        if (title != null && !title.isEmpty()) {
+            specification = specification.and(filterContainsText(Earthquake.class, "title", title));
+        }
+        if (eventTime != null) {
+            specification = specification.and(greaterThan(Earthquake.class, "eventTime", eventTime));
+        }
+        
+        return this.earthquakeRepository.findAll(specification, PageRequest.of(pageNum, pageSize));
     }
 
     @Override
     public void fetchAndSaveEarthquakes() {
         earthquakeRepository.deleteAll();
-        
+
+        //String url = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson";
         String url = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson";
         try {
             EarthquakeResponse response = restTemplate.getForObject(url, EarthquakeResponse.class);
             if (response != null && response.getFeatures() != null) {
-                // filter earthquakes with magnitudes that are larger than 2
+                //long thirtyDaysAgoInMillis = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000);
+
+                // Filter quake
                 List<Earthquake> earthquakesToSave = response.getFeatures().stream()
                         .map(Feature::getProperties)
-                        .filter(props -> props != null && props.getMag() != null && props.getMag() > 2.0)
+                        .filter(props -> props != null 
+                                && props.getMag() != null && props.getMag() > 2.0
+                                && props.getTime() != null)
                         .map(props -> {
                             Earthquake entity = new Earthquake();
                             entity.setMagnitude(props.getMag());

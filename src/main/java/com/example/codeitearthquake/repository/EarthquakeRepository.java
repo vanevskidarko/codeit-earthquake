@@ -13,6 +13,8 @@ public interface EarthquakeRepository extends JpaRepository<Earthquake,Long>, Jp
     List<Earthquake> findByMagnitudeGreaterThan(double minMagnitude);
 
     List<Earthquake> findEarthquakesByMagTypeContains(String magType);
+
     List<Earthquake> findByEventTimeAfter(long ms);
+
     List<Earthquake> findByMagnitudeGreaterThanAndEventTimeAfter(double minMagnitude, long ms);
 }
