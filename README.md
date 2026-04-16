@@ -33,7 +33,11 @@ This is a web application that fetches, stores, and displays recent earthquake d
 
 1.  **Clone the repository:**
     ```bash
+<<<<<<< HEAD
     git clone <your-repository-url>
+=======
+    git clone https://github.com/vanevskidarko/codeit-earthquake)
+>>>>>>> 8f1b9ad0201a053abdc2c97d1a90a806846b3b8c
     cd codeit-earthquake
     ```
 
@@ -41,6 +45,11 @@ This is a web application that fetches, stores, and displays recent earthquake d
     ```bash
     mvn clean install
     ```
+<<<<<<< HEAD
+=======
+    *   **Or if you don't have the Maven CLI,**
+    opt to install it from IntelliJ's IDE.
+>>>>>>> 8f1b9ad0201a053abdc2c97d1a90a806846b3b8c
 
 ---
 
